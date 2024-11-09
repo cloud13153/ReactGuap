@@ -1,19 +1,8 @@
 import React, { useState, useRef } from 'react';
-
-interface Circle {
-  id: number;
-  x: number;
-  y: number;
-  radius: number;
-  color: string;
-}
-
-interface History {
-  circles: Circle[];
-  selected: number[];
-}
+import {Circle, History} from './types'
 
 function App() {
+  // Основное состояние приложения
   const [circles, setCircles] = useState<Circle[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
   const [dragging, setDragging] = useState<number | null>(null);
@@ -21,12 +10,15 @@ function App() {
   const [startX, setStartX] = useState(0);
   const [startY, setStartY] = useState(0);
   const [color, setColor] = useState('#3f83f8');
+  
+  // Состояние для функционала undo
   const [history, setHistory] = useState<History[]>([]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const slideRef = useRef<HTMLDivElement>(null);
 
+  // Добавление нового круга со случайными координатами
   const handleAddCircle = () => {
-    const MIN_PX: number = 0.05; // ьинимальный % = 5
+    const MIN_PX: number = 0.05; // минимальный % = 5
     const MAX_PX: number = 0.2; // максимальный % = 20
 
     if (!slideRef.current) {
@@ -36,31 +28,33 @@ function App() {
     const {
       offsetWidth: width,
       offsetHeight: height
-      } = slideRef.current;
+    } = slideRef.current;
 
-      const [minWidth, maxWidth] = [width * MIN_PX, width * MAX_PX]
+    const [minWidth, maxWidth] = [width * MIN_PX, width * MAX_PX]
 
-      const radius = Math.floor(Math.random() * (maxWidth - minWidth)) + minWidth;
-      const x = Math.floor(Math.random() * (width - radius * 2));
-      const y = Math.floor(Math.random() * (height - radius * 2));
-      const newCircle = { id: Date.now(), x, y, radius, color };
-      const newHistory = [
-        ...history.slice(0, historyIndex + 1),
-        {
-          circles: [
-            ...circles,
-            newCircle
-          ],
-          selected
-        }
-      ];
-      setHistory(newHistory);
-      setHistoryIndex(historyIndex + 1);
-      setCircles([...circles, newCircle]);
+    // Генерация случайных параметров для нового круга
+    const radius = Math.floor(Math.random() * (maxWidth - minWidth)) + minWidth;
+    const x = Math.floor(Math.random() * (width - radius * 2));
+    const y = Math.floor(Math.random() * (height - radius * 2));
+    const newCircle = { id: Date.now(), x, y, radius, color };
+    
+    // Обновление истории и состояния
+    const newHistory = [
+      ...history.slice(0, historyIndex + 1),
+      {
+        circles: [...circles, newCircle],
+        selected
+      }
+    ];
+    setHistory(newHistory);
+    setHistoryIndex(historyIndex + 1);
+    setCircles([...circles, newCircle]);
   };
 
+  // Обработка перемещения кругов
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (groupDragging) {
+      // Перемещение группы выделенных кругов
       const rect = slideRef.current?.getBoundingClientRect();
       const x = e.clientX - (rect?.left ?? 0);
       const y = e.clientY - (rect?.top ?? 0);
@@ -69,6 +63,8 @@ function App() {
       const newCircles = circles.map((c) => 
         selected.includes(c.id) ? { ...c, x: c.x + dx, y: c.y + dy } : c
       );
+      
+      // Обновление истории и состояния
       const newHistory = [
         ...history.slice(0, historyIndex + 1),
         {
@@ -83,12 +79,15 @@ function App() {
       setStartX(x);
       setStartY(y);
     } else if (dragging !== null) {
+      // Перемещение одного круга
       const rect = slideRef.current?.getBoundingClientRect();
       const x = e.clientX - (rect?.left ?? 0) - (circles.find(c => c.id === dragging)?.radius ?? 0);
       const y = e.clientY - (rect?.top ?? 0) - (circles.find(c => c.id === dragging)?.radius ?? 0);
       const newCircles = circles.map((c) => 
         c.id === dragging ? { ...c, x, y } : c
       );
+      
+      // Обновление истории и состояния
       const newHistory = [
         ...history.slice(0, historyIndex + 1),
         {
@@ -103,9 +102,11 @@ function App() {
     }
   };
 
+  // Обработка выделения и начала перетаскивания
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>, circle: Circle) => {
     e.preventDefault();
     if (e.ctrlKey) {
+      // Множественное выделение с Ctrl
       const newSelected = selected.includes(circle.id) ?
         selected.filter((id) => id !== circle.id) :
         [...selected, circle.id];
@@ -121,6 +122,7 @@ function App() {
       setHistoryIndex(historyIndex + 1);
       setSelected(newSelected);
     } else if (!selected.includes(circle.id)) {
+      // Одиночное выделение
       const newHistory = [
         ...history.slice(0, historyIndex + 1),
         {
@@ -133,21 +135,22 @@ function App() {
       setHistoryIndex(historyIndex + 1);
       setSelected([circle.id]);
     }
+
+    // Настройка перетаскивания
     if (selected.length > 1) {
       setGroupDragging(true);
-
       const rect = slideRef.current?.getBoundingClientRect();
       const x = e.clientX - (rect?.left ?? 0);
       const y = e.clientY - (rect?.top ?? 0);
-
       setStartX(x);
       setStartY(y);
     } else {
       setDragging(circle.id);
     }
+
+    // Обработчики событий мыши для document
     const mouseMoveHandler = (e: MouseEvent) => {
       if (slideRef.current) {
-        // const rect = slideRef.current.getBoundingClientRect();
         const mouseEvent = {
           clientX: e.clientX,
           clientY: e.clientY,
@@ -167,8 +170,10 @@ function App() {
     document.addEventListener('mouseup', mouseUpHandler, { once: true });
   };
 
+  // Обработка клавиатурных команд (удаление и отмена)
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Backspace') {
+      // Удаление выделенных кругов
       const newCircles = circles.filter((c) => !selected.includes(c.id));
       const newHistory = [
         ...history.slice(0, historyIndex + 1),
@@ -183,6 +188,7 @@ function App() {
       setCircles(newCircles);
       setSelected([]);
     } else if (e.ctrlKey && e.key === 'z') {
+      // Отмена последнего действия
       if (historyIndex > 0) {
         setHistoryIndex(historyIndex - 1);
         const { circles, selected } = history[historyIndex - 1];
@@ -193,8 +199,9 @@ function App() {
   };
 
   return (
-    // В будущем надо будет вынести в отдельные компоненты.
+    // Основной интерфейс приложения
     <div className="flex flex-col items-center justify-center h-screen overflow-hidden">
+      {/* Панель инструментов */}
       <div className="flex mb-4">
         <button
           className="shadow-custom py-2 px-4 bg-blue-500 text-white rounded-lg transition-all duration-300 ease-in-out hover:bg-blue-700 hover:shadow-md"
@@ -205,7 +212,6 @@ function App() {
           }}
           onClick={handleAddCircle}
         >
-
           Добавить круг
         </button>
         <input
@@ -218,6 +224,8 @@ function App() {
           }}
         />
       </div>
+
+      {/* Рабочая область с кругами */}
       <div
         ref={slideRef}
         className="w-2/3 h-2/3 shadow-md bg-gray-200 border-2 border-dashed rounded-xl relative overflow-hidden"
@@ -225,6 +233,7 @@ function App() {
         onKeyDown={handleKeyDown}
         onMouseMove={handleMouseMove}
       >
+        {/* Отрисовка кругов */}
         {circles.map((circle) => (
           <div
             key={circle.id}
